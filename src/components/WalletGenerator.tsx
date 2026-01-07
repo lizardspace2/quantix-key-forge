@@ -3,10 +3,18 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Copy, Download, Eye, EyeOff, Shield, AlertTriangle, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 
 interface WalletData {
   address: string;
+  publicKey: string; // Keep raw public key
   privateKey: string;
 }
 
@@ -15,27 +23,28 @@ interface WalletData {
 const generateQuantixWallet = async (): Promise<WalletData> => {
   // Simulate processing time
   await new Promise(resolve => setTimeout(resolve, 1500));
-  
+
   // Generate cryptographically secure random bytes
   const publicKeyBytes = new Uint8Array(1312); // Dilithium2 public key size
   const privateKeyBytes = new Uint8Array(2528); // Dilithium2 private key size
-  
+
   crypto.getRandomValues(publicKeyBytes);
   crypto.getRandomValues(privateKeyBytes);
-  
+
   // Convert to required format
   const keyPairObj = {
     publicKey: Array.from(publicKeyBytes),
     privateKey: Array.from(privateKeyBytes),
   };
-  
+
   const privateKeyString = JSON.stringify(keyPairObj);
-  const address = Array.from(publicKeyBytes)
+  const rawAddress = Array.from(publicKeyBytes)
     .map(b => b.toString(16).padStart(2, '0'))
     .join('');
-  
+
   return {
-    address,
+    address: rawAddress,
+    publicKey: rawAddress,
     privateKey: privateKeyString,
   };
 };
@@ -44,13 +53,14 @@ const WalletGenerator = () => {
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [showPrivateKey, setShowPrivateKey] = useState(false);
+  const [addressFormat, setAddressFormat] = useState("hex");
   const { toast } = useToast();
 
   const handleGenerate = async () => {
     setIsGenerating(true);
     setWallet(null);
     setShowPrivateKey(false);
-    
+
     try {
       const newWallet = await generateQuantixWallet();
       setWallet(newWallet);
@@ -69,6 +79,34 @@ const WalletGenerator = () => {
     }
   };
 
+  const formatAddress = (addr: string, format: string) => {
+    switch (format) {
+      case "prefixed":
+        return `:${addr}`;
+      case "base64":
+        // Convert hex back to bytes then to base64
+        try {
+          const match = addr.match(/.{1,2}/g);
+          if (!match) return addr;
+          const bytes = new Uint8Array(match.map(byte => parseInt(byte, 16)));
+          const binary = String.fromCharCode(...bytes);
+          return btoa(binary);
+        } catch (e) {
+          return addr;
+        }
+      case "hash":
+        // Simulated hash for demo purposes (last 64 chars as a "hash")
+        return `hash:${addr.slice(0, 16)}...${addr.slice(-16)}`;
+      default: // hex
+        return addr;
+    }
+  };
+
+  const getDisplayedAddress = () => {
+    if (!wallet) return "";
+    return formatAddress(wallet.publicKey, addressFormat);
+  };
+
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     toast({
@@ -79,7 +117,7 @@ const WalletGenerator = () => {
 
   const downloadWallet = () => {
     if (!wallet) return;
-    
+
     const blob = new Blob([wallet.privateKey], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
@@ -89,15 +127,11 @@ const WalletGenerator = () => {
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
-    
+
     toast({
       title: "Downloaded",
       description: "Wallet file saved successfully.",
     });
-  };
-
-  const truncateAddress = (addr: string) => {
-    return `${addr.slice(0, 16)}...${addr.slice(-16)}`;
   };
 
   return (
@@ -156,17 +190,30 @@ const WalletGenerator = () => {
             >
               {/* Address Section */}
               <div className="space-y-3">
-                <label className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                  Wallet Address
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
+                    Wallet Address
+                  </label>
+                  <Select value={addressFormat} onValueChange={setAddressFormat}>
+                    <SelectTrigger className="w-[180px] h-8 text-xs bg-secondary/50 border-white/10">
+                      <SelectValue placeholder="Format" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="hex">Hex (Standard)</SelectItem>
+                      <SelectItem value="prefixed">Prefixed (:hex)</SelectItem>
+                      <SelectItem value="base64">Base64</SelectItem>
+                      <SelectItem value="hash">Short Hash</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="flex items-center gap-3 p-4 rounded-xl bg-secondary/50 quantum-border">
                   <code className="flex-1 text-sm text-foreground font-mono break-all">
-                    {truncateAddress(wallet.address)}
+                    {getDisplayedAddress()}
                   </code>
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => copyToClipboard(wallet.address, "Address")}
+                    onClick={() => copyToClipboard(getDisplayedAddress(), "Address")}
                     className="shrink-0 hover:bg-primary/10 hover:text-primary"
                   >
                     <Copy className="h-4 w-4" />
@@ -182,8 +229,8 @@ const WalletGenerator = () => {
                 <div className="p-4 rounded-xl bg-secondary/50 quantum-border">
                   <div className="flex items-start gap-3">
                     <code className="flex-1 text-sm text-foreground font-mono break-all max-h-32 overflow-y-auto">
-                      {showPrivateKey 
-                        ? wallet.privateKey.slice(0, 200) + "..." 
+                      {showPrivateKey
+                        ? wallet.privateKey.slice(0, 200) + "..."
                         : "••••••••••••••••••••••••••••••••••••••••"}
                     </code>
                     <div className="flex gap-2 shrink-0">
@@ -238,7 +285,7 @@ const WalletGenerator = () => {
           <AlertTriangle className="h-5 w-5 text-destructive" />
           <AlertTitle className="text-destructive font-semibold">Security Warning</AlertTitle>
           <AlertDescription className="text-muted-foreground mt-2">
-            Save your private key safely. If you lose it, your funds are lost forever. 
+            Save your private key safely. If you lose it, your funds are lost forever.
             We do not store your keys. This wallet is generated entirely in your browser.
           </AlertDescription>
         </Alert>
