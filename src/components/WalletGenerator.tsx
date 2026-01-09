@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Copy, Download, Eye, EyeOff, Shield, AlertTriangle, Loader2, Sparkles } from "lucide-react";
+import { Copy, Download, Eye, EyeOff, Shield, AlertTriangle, Loader2, Sparkles, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import Logo from "@/components/Logo";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -53,6 +53,7 @@ const generateQuantixWallet = async (): Promise<WalletData> => {
 const WalletGenerator = () => {
   const [wallet, setWallet] = useState<WalletData | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [loadingText, setLoadingText] = useState("Initializing...");
   const [showPrivateKey, setShowPrivateKey] = useState(false);
   const [addressFormat, setAddressFormat] = useState("hex");
   const { toast } = useToast();
@@ -62,7 +63,21 @@ const WalletGenerator = () => {
     setWallet(null);
     setShowPrivateKey(false);
 
+    const steps = [
+      "Initializing Crystal Lattice...",
+      "Sampling Dilithium Noise...",
+      "Forging Quantum Keys...",
+      "Verifying Entropy...",
+      "Finalizing Secure Wallet..."
+    ];
+
     try {
+      // Simulate "technical" steps
+      for (const step of steps) {
+        setLoadingText(step);
+        await new Promise(resolve => setTimeout(resolve, 600));
+      }
+
       const newWallet = await generateQuantixWallet();
       setWallet(newWallet);
       toast({
@@ -142,16 +157,19 @@ const WalletGenerator = () => {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, delay: 0.2 }}
-        className="glass-card p-8 md:p-10"
+        className="glass-card p-8 md:p-10 border border-primary/20 shadow-[0_0_30px_-10px_rgba(45,212,191,0.2)] backdrop-blur-2xl bg-black/40"
       >
         {/* Card Header */}
-        <div className="flex items-center gap-3 mb-8">
-          <div className="p-3 rounded-xl bg-primary/10 quantum-border">
-            <Logo variant="icon" className="w-6 h-6 [&>svg]:w-6 [&>svg]:h-6" />
+        <div className="flex items-center gap-4 mb-8">
+          <div className="p-3.5 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/5 border border-primary/20 shadow-inner shadow-primary/10">
+            <Logo variant="icon" className="w-7 h-7 [&>svg]:w-7 [&>svg]:h-7" />
           </div>
           <div>
-            <h2 className="text-xl font-semibold text-foreground">Wallet Generator</h2>
-            <p className="text-sm text-muted-foreground">Dilithium Level 2 Security</p>
+            <h2 className="text-2xl font-bold tracking-tight text-white mb-0.5">Wallet Generator</h2>
+            <div className="flex items-center gap-2">
+              <span className="flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+              <p className="text-sm font-medium text-emerald-500/90">Dilithium Level 2 Security Active</p>
+            </div>
           </div>
         </div>
 
@@ -163,19 +181,22 @@ const WalletGenerator = () => {
           <Button
             onClick={handleGenerate}
             disabled={isGenerating}
-            className="w-full h-14 text-lg font-semibold bg-gradient-to-r from-primary to-accent text-primary-foreground hover:opacity-90 transition-all duration-300 quantum-glow"
+            className="group relative w-full h-16 text-lg font-bold tracking-wide overflow-hidden bg-gradient-to-r from-primary via-emerald-400 to-primary bg-[length:200%_100%] animate-shimmer text-primary-foreground shadow-[0_0_20px_rgba(45,212,191,0.3)] hover:shadow-[0_0_30px_rgba(45,212,191,0.5)] transition-all duration-300 border-none"
           >
-            {isGenerating ? (
-              <>
-                <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-                Generating Quantum Keys...
-              </>
-            ) : (
-              <>
-                <Sparkles className="mr-2 h-5 w-5" />
-                Generate Secure Quantix Wallet
-              </>
-            )}
+            <div className="absolute inset-0 bg-white/20 group-hover:bg-white/10 transition-colors" />
+            <div className="relative flex items-center justify-center gap-2">
+              {isGenerating ? (
+                <>
+                  <Loader2 className="h-5 w-5 animate-spin" />
+                  <span className="animate-pulse">{loadingText}</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles className="h-5 w-5" />
+                  <span>Forge New Quantix Wallet</span>
+                </>
+              )}
+            </div>
           </Button>
         </motion.div>
 
@@ -192,14 +213,14 @@ const WalletGenerator = () => {
               {/* Address Section */}
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                    Wallet Address
+                  <label className="text-xs font-semibold text-primary/80 uppercase tracking-widest">
+                    Public Address (Identity)
                   </label>
                   <Select value={addressFormat} onValueChange={setAddressFormat}>
-                    <SelectTrigger className="w-[180px] h-8 text-xs bg-secondary/50 border-white/10">
+                    <SelectTrigger className="w-[180px] h-8 text-xs bg-black/40 border-primary/20 text-primary/80 focus:ring-primary/50">
                       <SelectValue placeholder="Format" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="bg-zinc-950 border-zinc-800">
                       <SelectItem value="hex">Hex (Standard)</SelectItem>
                       <SelectItem value="prefixed">Prefixed (:hex)</SelectItem>
                       <SelectItem value="base64">Base64</SelectItem>
@@ -207,15 +228,15 @@ const WalletGenerator = () => {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="flex items-center gap-3 p-4 rounded-xl bg-secondary/50 quantum-border">
-                  <code className="flex-1 text-sm text-foreground font-mono break-all">
+                <div className="group relative flex items-center gap-3 p-4 rounded-xl bg-black/60 border border-white/5 hover:border-primary/30 transition-colors duration-300">
+                  <code className="flex-1 text-sm text-cyan-50 font-mono break-all selection:bg-primary/30">
                     {getDisplayedAddress()}
                   </code>
                   <Button
                     variant="ghost"
                     size="icon"
                     onClick={() => copyToClipboard(getDisplayedAddress(), "Address")}
-                    className="shrink-0 hover:bg-primary/10 hover:text-primary"
+                    className="shrink-0 text-muted-foreground hover:text-primary hover:bg-primary/10 transition-colors"
                   >
                     <Copy className="h-4 w-4" />
                   </Button>
@@ -224,33 +245,35 @@ const WalletGenerator = () => {
 
               {/* Private Key Section */}
               <div className="space-y-3">
-                <label className="text-sm font-medium text-muted-foreground uppercase tracking-wider">
-                  Private Key
+                <label className="text-xs font-semibold text-destructive/90 uppercase tracking-widest flex items-center gap-2">
+                  <Lock className="w-3 h-3" /> Private Key (Secret)
                 </label>
-                <div className="p-4 rounded-xl bg-secondary/50 quantum-border">
-                  <div className="flex items-start gap-3">
-                    <code className="flex-1 text-sm text-foreground font-mono break-all max-h-32 overflow-y-auto">
-                      {showPrivateKey
-                        ? wallet.privateKey.slice(0, 200) + "..."
-                        : "••••••••••••••••••••••••••••••••••••••••"}
-                    </code>
-                    <div className="flex gap-2 shrink-0">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setShowPrivateKey(!showPrivateKey)}
-                        className="hover:bg-primary/10 hover:text-primary"
-                      >
-                        {showPrivateKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => copyToClipboard(wallet.privateKey, "Private Key")}
-                        className="hover:bg-primary/10 hover:text-primary"
-                      >
-                        <Copy className="h-4 w-4" />
-                      </Button>
+                <div className="relative p-0.5 rounded-xl bg-gradient-to-br from-destructive/50 to-orange-500/20">
+                  <div className="p-4 rounded-[10px] bg-black/80 backdrop-blur-sm">
+                    <div className="flex items-start gap-3">
+                      <code className="flex-1 text-sm text-orange-50 font-mono break-all max-h-32 overflow-y-auto selection:bg-destructive/30 custom-scrollbar">
+                        {showPrivateKey
+                          ? wallet.privateKey
+                          : "••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••"}
+                      </code>
+                      <div className="flex flex-col gap-1 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setShowPrivateKey(!showPrivateKey)}
+                          className="h-8 w-8 text-muted-foreground hover:text-orange-400 hover:bg-orange-400/10"
+                        >
+                          {showPrivateKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => copyToClipboard(wallet.privateKey, "Private Key")}
+                          className="h-8 w-8 text-muted-foreground hover:text-orange-400 hover:bg-orange-400/10"
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -264,10 +287,10 @@ const WalletGenerator = () => {
                 <Button
                   onClick={downloadWallet}
                   variant="outline"
-                  className="w-full h-12 quantum-border hover:bg-primary/10 transition-all duration-300"
+                  className="w-full h-12 border-primary/30 text-primary hover:bg-primary/10 hover:text-primary transition-all duration-300 font-medium"
                 >
                   <Download className="mr-2 h-4 w-4" />
-                  Download Private Key (.json)
+                  Backup Wallet File (.json)
                 </Button>
               </motion.div>
             </motion.div>
@@ -282,12 +305,12 @@ const WalletGenerator = () => {
         transition={{ duration: 0.6, delay: 0.4 }}
         className="mt-6"
       >
-        <Alert className="glass-card border-destructive/30 bg-destructive/5">
-          <AlertTriangle className="h-5 w-5 text-destructive" />
-          <AlertTitle className="text-destructive font-semibold">Security Warning</AlertTitle>
-          <AlertDescription className="text-muted-foreground mt-2">
-            Save your private key safely. If you lose it, your funds are lost forever.
-            We do not store your keys. This wallet is generated entirely in your browser.
+        <Alert className="glass-card border-none bg-gradient-to-r from-destructive/10 to-orange-500/5 shadow-lg">
+          <AlertTriangle className="h-5 w-5 text-orange-500" />
+          <AlertTitle className="text-orange-400 font-bold">Maximum Security Protocol</AlertTitle>
+          <AlertDescription className="text-zinc-400 mt-2 font-medium">
+            This private key grants absolute control over your assets. Store it offline.
+            <br />We never transmit or store your keys—they are forged locally in your browser memory.
           </AlertDescription>
         </Alert>
       </motion.div>

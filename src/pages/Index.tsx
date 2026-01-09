@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import QuantumGrid from "@/components/QuantumGrid";
 import WalletGenerator from "@/components/WalletGenerator";
 import Logo from "@/components/Logo";
-import { Shield, Cpu, Lock } from "lucide-react";
+import { Shield, Cpu, Lock, ArrowLeft } from "lucide-react";
 
 const Index = () => {
   return (
@@ -12,6 +12,14 @@ const Index = () => {
 
       {/* Content */}
       <div className="relative z-10">
+        <a
+          href="https://quantumresistantcoin.com"
+          className="fixed top-6 left-6 z-50 flex items-center gap-2 px-4 py-2 rounded-full bg-black/20 backdrop-blur-md border border-white/10 text-sm text-muted-foreground hover:text-white hover:border-primary/50 hover:bg-primary/10 transition-all duration-300 group"
+        >
+          <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1 text-primary" />
+          <span className="font-medium">Back to Main Site</span>
+        </a>
+
         {/* Hero Section */}
         <header className="pt-16 pb-12 px-4">
           <motion.div
@@ -31,9 +39,9 @@ const Index = () => {
             </motion.div>
 
             {/* Title */}
-            <h1 className="text-4xl md:text-6xl font-bold mb-4 tracking-tight">
-              <span className="quantum-text">Quantix</span>
-              <span className="text-foreground"> Key Forge</span>
+            <h1 className="text-5xl md:text-7xl font-bold mb-6 tracking-tight">
+              <span className="quantum-text drop-shadow-[0_0_30px_rgba(45,212,191,0.4)] animate-pulse-glow">Quantix</span>
+              <span className="bg-clip-text text-transparent bg-gradient-to-br from-white via-white to-white/40"> Key Forge</span>
             </h1>
 
             {/* Subtitle */}
@@ -57,15 +65,30 @@ const Index = () => {
         </header>
 
         {/* Main Content */}
-        <main className="pb-20">
+        <main className="pb-20 relative z-20">
           <WalletGenerator />
         </main>
 
         {/* Footer */}
-        <footer className="py-8 px-4 text-center">
-          <p className="text-sm text-muted-foreground">
-            Quantix (QTX) • Built for NaivecoinStake Blockchain
-          </p>
+        <footer className="py-16 px-4 text-center border-t border-white/5 bg-black/40 backdrop-blur-xl">
+          <div className="flex flex-col items-center gap-6">
+            <div className="p-4 rounded-full bg-white/5 border border-white/5 mb-2 hover:scale-110 transition-transform duration-500">
+              <Logo variant="icon" className="w-8 h-8 text-primary/80" />
+            </div>
+            <div className="space-y-2">
+              <p className="text-sm font-medium text-foreground/80">
+                Quantix (QTX)
+              </p>
+              <p className="text-sm text-muted-foreground/60 max-w-md mx-auto">
+                Secure. Scalable. Quadratic.
+                <br />The next generation of post-quantum digital assets on the NaivecoinStake Blockchain.
+              </p>
+            </div>
+            <div className="flex items-center gap-2 text-[10px] text-primary/40 font-mono tracking-[0.2em] mt-4 border px-3 py-1 rounded-full border-primary/10 bg-primary/5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              SYSTEM ONLINE
+            </div>
+          </div>
         </footer>
       </div>
     </div>
@@ -73,8 +96,8 @@ const Index = () => {
 };
 
 const FeatureBadge = ({ icon, text }: { icon: React.ReactNode; text: string }) => (
-  <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-secondary/50 quantum-border text-sm text-muted-foreground">
-    <span className="text-primary">{icon}</span>
+  <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-secondary/30 backdrop-blur-md border border-white/5 hover:border-primary/30 transition-all duration-300 text-sm text-muted-foreground hover:text-foreground">
+    <span className="text-primary drop-shadow-[0_0_8px_rgba(45,212,191,0.5)]">{icon}</span>
     {text}
   </div>
 );

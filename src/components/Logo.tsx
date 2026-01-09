@@ -15,13 +15,13 @@ const Logo = ({ className, variant = "full" }: LogoProps) => {
                 viewBox="0 0 40 40"
                 fill="none"
                 xmlns="http://www.w3.org/2000/svg"
-                className="w-10 h-10 text-primary"
+                className="w-10 h-10 text-primary group transition-transform duration-500 hover:scale-110"
             >
                 <path
                     d="M20 5L32.9904 12.5V27.5L20 35L7.00962 27.5V12.5L20 5Z"
                     stroke="currentColor"
                     strokeWidth="2.5"
-                    className="quantum-border"
+                    className="quantum-border transition-all duration-300 group-hover:stroke-[3px] group-hover:drop-shadow-[0_0_10px_rgba(45,212,191,0.5)]"
                 />
                 <path
                     d="M20 12L26.9282 16V24L20 28L13.0718 24V16L20 12Z"
@@ -29,13 +29,15 @@ const Logo = ({ className, variant = "full" }: LogoProps) => {
                     fillOpacity="0.2"
                     stroke="currentColor"
                     strokeWidth="1.5"
+                    className="origin-center animate-spin-slow"
                 />
-                <circle cx="20" cy="20" r="3" fill="currentColor" />
+                <circle cx="20" cy="20" r="3" fill="currentColor" className="animate-pulse" />
                 <path
                     d="M20 35V28"
                     stroke="currentColor"
                     strokeWidth="2"
                     strokeLinecap="round"
+                    className="opacity-50"
                 />
             </svg>
             {variant === "full" && (
