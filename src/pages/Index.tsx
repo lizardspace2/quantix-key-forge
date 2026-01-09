@@ -1,6 +1,7 @@
 import { motion } from "framer-motion";
 import QuantumGrid from "@/components/QuantumGrid";
 import WalletGenerator from "@/components/WalletGenerator";
+import Logo from "@/components/Logo";
 import { Shield, Cpu, Lock } from "lucide-react";
 
 const Index = () => {
@@ -8,7 +9,7 @@ const Index = () => {
     <div className="min-h-screen relative overflow-hidden">
       {/* Animated Background */}
       <QuantumGrid />
-      
+
       {/* Content */}
       <div className="relative z-10">
         {/* Hero Section */}
@@ -24,23 +25,23 @@ const Index = () => {
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ duration: 0.5, type: "spring", stiffness: 200 }}
-              className="inline-flex items-center justify-center w-20 h-20 rounded-2xl bg-gradient-to-br from-primary/20 to-accent/20 quantum-border mb-8 quantum-glow"
+              className="mb-8"
             >
-              <Shield className="w-10 h-10 text-primary" />
+              <Logo className="w-auto h-20 [&>svg]:w-20 [&>svg]:h-20 [&>span]:hidden" />
             </motion.div>
-            
+
             {/* Title */}
             <h1 className="text-4xl md:text-6xl font-bold mb-4 tracking-tight">
               <span className="quantum-text">Quantix</span>
-              <span className="text-foreground"> Wallet Generator</span>
+              <span className="text-foreground"> Key Forge</span>
             </h1>
-            
+
             {/* Subtitle */}
             <p className="text-lg md:text-xl text-muted-foreground max-w-2xl mx-auto leading-relaxed">
-              Generate quantum-secure wallets for the NaivecoinStake blockchain. 
+              Generate quantum-secure wallets for the NaivecoinStake blockchain.
               Powered by Dilithium post-quantum cryptography.
             </p>
-            
+
             {/* Feature Badges */}
             <motion.div
               initial={{ opacity: 0 }}

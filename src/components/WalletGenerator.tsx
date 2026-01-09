@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Copy, Download, Eye, EyeOff, Shield, AlertTriangle, Loader2, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import Logo from "@/components/Logo";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   Select,
@@ -146,7 +147,7 @@ const WalletGenerator = () => {
         {/* Card Header */}
         <div className="flex items-center gap-3 mb-8">
           <div className="p-3 rounded-xl bg-primary/10 quantum-border">
-            <Shield className="w-6 h-6 text-primary" />
+            <Logo variant="icon" className="w-6 h-6 [&>svg]:w-6 [&>svg]:h-6" />
           </div>
           <div>
             <h2 className="text-xl font-semibold text-foreground">Wallet Generator</h2>
