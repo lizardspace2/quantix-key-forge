@@ -2,7 +2,7 @@ import { motion } from "framer-motion";
 import QuantumGrid from "@/components/QuantumGrid";
 import WalletGenerator from "@/components/WalletGenerator";
 import Logo from "@/components/Logo";
-import { Shield, Cpu, Lock, ArrowLeft } from "lucide-react";
+import { Shield, Cpu, Lock } from "lucide-react";
 
 const Index = () => {
   return (
@@ -12,13 +12,7 @@ const Index = () => {
 
       {/* Content */}
       <div className="relative z-10">
-        <a
-          href="https://quantumresistantcoin.com"
-          className="fixed top-6 left-6 z-50 flex items-center gap-2 px-4 py-2 rounded-full bg-black/20 backdrop-blur-md border border-white/10 text-sm text-muted-foreground hover:text-white hover:border-primary/50 hover:bg-primary/10 transition-all duration-300 group"
-        >
-          <ArrowLeft className="w-4 h-4 transition-transform group-hover:-translate-x-1 text-primary" />
-          <span className="font-medium">Back to Main Site</span>
-        </a>
+
 
         {/* Hero Section */}
         <header className="pt-16 pb-12 px-4">
