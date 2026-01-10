@@ -1,13 +1,13 @@
-import { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Shield, Send, Wallet, ArrowRight, Settings, Check, Clock, Zap, AlertTriangle, Eye, EyeOff, RefreshCw, Server, Box, Globe, FileJson, Loader2, Copy } from "lucide-react";
+import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import { Shield, Send, Wallet, ArrowRight, Check, Clock, Zap, AlertTriangle, Eye, EyeOff, RefreshCw, Server, Box, Globe, Copy, Loader2 } from "lucide-react";
 import QuantumGrid from "@/components/QuantumGrid";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { generateKeyPair, deriveAddress, createSignature, calculateTxId, SignedTransaction } from "@/lib/quantix-crypto";
+import { generateKeyPair, deriveAddress, createTransaction, Transaction as QTx, UnspentTxOut } from "@/lib/quantix-crypto";
 import { useToast } from "@/hooks/use-toast";
 
 type TxStatus = "idle" | "signing" | "signed" | "broadcasting" | "mempool" | "mining" | "confirmed";
@@ -19,6 +19,7 @@ const Transaction = () => {
     const [alicePrivateKey, setAlicePrivateKey] = useState("");
     const [alicePublicKey, setAlicePublicKey] = useState("");
     const [aliceAddress, setAliceAddress] = useState("");
+    const [aliceUTXOs, setAliceUTXOs] = useState<UnspentTxOut[]>([]);
     const [showPrivateKey, setShowPrivateKey] = useState(false);
     const [isGeneratingKeys, setIsGeneratingKeys] = useState(false);
 
@@ -28,7 +29,7 @@ const Transaction = () => {
     const [priority, setPriority] = useState("normal");
     const [fee, setFee] = useState("0.0005");
     const [status, setStatus] = useState<TxStatus>("idle");
-    const [signedTx, setSignedTx] = useState<SignedTransaction | null>(null);
+    const [signedTx, setSignedTx] = useState<QTx | null>(null);
 
     // Broadcast Simulation State
     const [broadcastLog, setBroadcastLog] = useState<string[]>([]);
@@ -37,19 +38,36 @@ const Transaction = () => {
 
     // Load demo "Bob" address
     useEffect(() => {
-        setBobAddress("0x71C7656EC7ab88b098defB751B7401B5f6d8976F");
+        setBobAddress("04bfcab8722991dd7794c9439205322ffa4b77d8131521cd9af383b499119c8d0092d6e382d61cb571f39185a676c1214c8188288734279532811451e041935003"); // Large Dilithium-like key
     }, []);
+
+    // Mock API: Fetch UTXOs
+    const fetchUTXOs = async (address: string) => {
+        // In real node: GET /unspentTransactionOutputs/:address
+        // Mocking 2 UTXOs for Alice
+        return [
+            { txOutId: "a1b2c3d4e5f6...genesis", txOutIndex: 0, address: address, amount: 50 },
+            { txOutId: "f6e5d4c3b2a1...reward", txOutIndex: 1, address: address, amount: 25 }
+        ];
+    };
 
     const handleGenerateKeys = async () => {
         setIsGeneratingKeys(true);
         try {
             const keys = await generateKeyPair();
+            const address = deriveAddress(keys.publicKey);
+
             setAlicePrivateKey(keys.privateKey);
             setAlicePublicKey(keys.publicKey);
-            setAliceAddress(deriveAddress(keys.publicKey));
+            setAliceAddress(address);
+
+            // Auto-load "Balance" (UTXOs)
+            const mockUTXOs = await fetchUTXOs(address);
+            setAliceUTXOs(mockUTXOs);
+
             toast({
-                title: "Keys Generated",
-                description: "New Dilithium keypair generated for Alice.",
+                title: "Identity Created",
+                description: `Generated Dilithium-II keys. Found ${mockUTXOs.length} UTXOs.`,
             });
         } catch (e) {
             console.error(e);
@@ -57,6 +75,8 @@ const Transaction = () => {
             setIsGeneratingKeys(false);
         }
     };
+
+    const getBalance = () => aliceUTXOs.reduce((acc, utxo) => acc + utxo.amount, 0);
 
     const updateFee = (newPriority: string) => {
         setPriority(newPriority);
@@ -69,45 +89,28 @@ const Transaction = () => {
 
     const handleSign = async () => {
         if (!alicePrivateKey || !bobAddress || !amount) {
-            toast({
-                title: "Missing Information",
-                description: "Please fill in all fields (Alice's Key, Bob's Address, Amount).",
-                variant: "destructive"
-            });
+            toast({ title: "Error", description: "Missing fields.", variant: "destructive" });
             return;
         }
 
         setStatus("signing");
         try {
-            const timestamp = Date.now();
-            const txData = {
-                from: aliceAddress,
-                to: bobAddress,
-                amount,
-                fee,
-                timestamp,
-                publicKey: alicePublicKey
-            };
+            // Create Transaction using Coin Control (UTXO Model)
+            const tx = await createTransaction(
+                bobAddress,
+                parseFloat(amount),
+                alicePrivateKey,
+                aliceUTXOs
+            );
 
-            // Create signature based on the data
-            const message = JSON.stringify(txData);
-            const signature = await createSignature(message, alicePrivateKey);
-            const txId = await calculateTxId({ ...txData, publicKey: alicePublicKey }); // Include pk in ID calculation for demo
-
-            const completeTx: SignedTransaction = {
-                txId,
-                ...txData,
-                signature
-            };
-
-            setSignedTx(completeTx);
+            setSignedTx(tx);
             setStatus("signed");
             toast({
                 title: "Transaction Signed",
-                description: "Cryptographic signature generated successfully.",
+                description: `Tx created with ${tx.txIns.length} Inputs and ${tx.txOuts.length} Outputs.`,
             });
-        } catch (e) {
-            toast({ title: "Error", description: "Failed to sign transaction.", variant: "destructive" });
+        } catch (e: any) {
+            toast({ title: "Error", description: e.message || "Failed to sign.", variant: "destructive" });
             setStatus("idle");
         }
     };
@@ -121,39 +124,36 @@ const Transaction = () => {
         setBroadcastLog([]);
         setConfirmations(0);
 
-        // Simulation Sequence
-        addLog("Initializing P2P connection...");
+        addLog("Connecting to Node (34.66.15.88)...");
+        await new Promise(r => setTimeout(r, 800));
+
+        addLog(`POST /transaction { id: ${signedTx.id.slice(0, 16)}... }`);
         await new Promise(r => setTimeout(r, 1000));
 
-        addLog(`Connected to node 104.23.11.89 (Latency: 42ms)`);
-        addLog(`Broadcasting TxID: ${signedTx.txId.slice(0, 16)}...`);
-        await new Promise(r => setTimeout(r, 1500));
-
         setStatus("mempool");
-        addLog("Transaction accepted by mempool");
-        addLog("Propagating to peers (7/12)...");
+        addLog("Node accepted transaction. Propagation to peers...");
+        addLog("Inputs validated. Signatures verified (Mock).");
         await new Promise(r => setTimeout(r, 2000));
 
         setStatus("mining");
-        addLog("Miner found! Validating PoW...");
-        addLog("Building Block #8,942,123...");
+        addLog("Mining in progress...");
         await new Promise(r => setTimeout(r, 3000));
 
         setStatus("confirmed");
-        addLog("Block Mined Successfully! Tx Included.");
+        addLog("Included in Block #100421");
 
-        // Simulate confirmations
+        // Valid confirmation visual
         let confs = 1;
         setConfirmations(confs);
         const interval = setInterval(() => {
             confs++;
             setConfirmations(confs);
-            addLog(`New block mined on top. Confirmations: ${confs}`);
+            addLog(`Confirmation ${confs}/6`);
             if (confs >= 6) {
                 clearInterval(interval);
-                addLog("Transaction Finalized (6 confirmations).");
+                addLog("Transaction Finalized.");
             }
-        }, 2000);
+        }, 1500);
     };
 
     const copyToClipboard = (text: string, label: string) => {
@@ -176,16 +176,13 @@ const Transaction = () => {
                     <div className="text-center space-y-4">
                         <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-xs font-medium text-primary mb-2">
                             <Shield className="w-3 h-3" />
-                            <span>Signature & Diffusion Blockchain</span>
+                            <span>UTXO Blockchain Node Interface</span>
                         </div>
                         <h1 className="text-4xl md:text-5xl font-bold tracking-tight">
                             <span className="bg-clip-text text-transparent bg-gradient-to-br from-white via-white to-white/40">
                                 Quantix Signer
                             </span>
                         </h1>
-                        <p className="text-muted-foreground max-w-2xl mx-auto">
-                            Signez et diffusez vos transactions avec sécurité Post-Quantum Dilithium.
-                        </p>
                     </div>
 
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -220,8 +217,9 @@ const Transaction = () => {
                                         </div>
                                         {aliceAddress && (
                                             <div className="text-right">
-                                                <div className="text-xs text-muted-foreground">Solde Estimé</div>
-                                                <div className="font-mono text-emerald-400">1,240.50 QTX</div>
+                                                <div className="text-xs text-muted-foreground">Solde Total</div>
+                                                <div className="font-mono text-emerald-400">{getBalance()} QTX</div>
+                                                <div className="text-[10px] text-muted-foreground">{aliceUTXOs.length} UTXOs disponibles</div>
                                             </div>
                                         )}
                                     </div>
@@ -231,34 +229,29 @@ const Transaction = () => {
                                             <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20 flex items-start gap-3">
                                                 <AlertTriangle className="w-4 h-4 text-yellow-500 shrink-0 mt-0.5" />
                                                 <p className="text-xs text-yellow-500/90">
-                                                    Commencez par générer ou importer une clé privée pour Alice.
+                                                    Générez des clés pour récupérer les UTXOs du nœud simulé.
                                                 </p>
                                             </div>
                                         )}
 
                                         <div className="space-y-2">
                                             <div className="flex items-center justify-between">
-                                                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Clé Privée (Sender)</Label>
+                                                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Clé Privée</Label>
                                                 <button
                                                     onClick={handleGenerateKeys}
                                                     disabled={isGeneratingKeys}
                                                     className="text-xs text-primary hover:text-primary/80 flex items-center gap-1 transition-colors disabled:opacity-50"
                                                 >
                                                     {isGeneratingKeys ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
-                                                    Générer Aléatoirement
+                                                    Générer & Fetch UTXOs
                                                 </button>
                                             </div>
                                             <div className="relative">
                                                 <Input
                                                     type={showPrivateKey ? "text" : "password"}
                                                     value={alicePrivateKey}
-                                                    onChange={(e) => {
-                                                        setAlicePrivateKey(e.target.value);
-                                                        // Normally would try to derive public key from private, but here we simplify
-                                                        if (e.target.value === "") setAliceAddress("");
-                                                    }}
-                                                    placeholder="Entrez clé privée ou cliquez sur générer"
-                                                    className="bg-black/50 border-white/10 focus:border-emerald-500/50 pr-10 font-mono text-xs"
+                                                    readOnly
+                                                    className="bg-black/50 border-white/10 focus:border-emerald-500/50 pr-10 font-mono text-xs text-muted-foreground"
                                                 />
                                                 <button
                                                     onClick={() => setShowPrivateKey(!showPrivateKey)}
@@ -268,15 +261,6 @@ const Transaction = () => {
                                                 </button>
                                             </div>
                                         </div>
-
-                                        {aliceAddress && (
-                                            <div className="pt-2 animate-in fade-in">
-                                                <Label className="text-xs text-muted-foreground uppercase tracking-wider">Adresse Publique Dérivée</Label>
-                                                <div className="mt-1 p-2 rounded bg-black/60 border border-white/5 font-mono text-xs text-muted-foreground break-all">
-                                                    {aliceAddress}
-                                                </div>
-                                            </div>
-                                        )}
                                     </div>
                                 </div>
 
@@ -301,7 +285,7 @@ const Transaction = () => {
                                                 value={bobAddress}
                                                 onChange={(e) => setBobAddress(e.target.value)}
                                                 placeholder="0x..."
-                                                className="bg-black/50 border-white/10 focus:border-purple-500/50 font-mono text-sm"
+                                                className="bg-black/50 border-white/10 focus:border-purple-500/50 font-mono text-sm truncate"
                                             />
                                         </div>
                                     </div>
@@ -329,7 +313,7 @@ const Transaction = () => {
                                 </div>
 
                                 <div className="p-6 rounded-2xl glass-card border border-white/10 bg-black/40 backdrop-blur-xl">
-                                    <h3 className="text-sm font-medium text-muted-foreground mb-4">Priorité de transaction</h3>
+                                    <h3 className="text-sm font-medium text-muted-foreground mb-4">Priorité</h3>
                                     <div className="grid grid-cols-3 gap-3">
                                         {[
                                             { id: "economic", label: "Eco", icon: Wallet, color: "text-blue-400" },
@@ -351,7 +335,6 @@ const Transaction = () => {
                                             </button>
                                         ))}
                                     </div>
-                                    <div className="mt-3 text-center text-xs text-muted-foreground">Frais estimés: <span className="font-mono text-primary">{fee} QTX</span></div>
                                 </div>
                             </div>
 
@@ -365,7 +348,7 @@ const Transaction = () => {
                                         className="w-full max-w-md h-14 text-lg font-bold bg-gradient-to-r from-primary to-emerald-400 hover:shadow-[0_0_40px_rgba(45,212,191,0.4)] transition-all duration-500"
                                     >
                                         {status === "signing" ? <Loader2 className="w-5 h-5 animate-spin mr-2" /> : <Shield className="w-5 h-5 mr-2" />}
-                                        {status === "signing" ? "Calcul en cours..." : "Signer la Transaction"}
+                                        {status === "signing" ? "Construction UTXO..." : "Signer la Transaction"}
                                     </Button>
                                 </div>
                             ) : (
@@ -376,11 +359,28 @@ const Transaction = () => {
                                 >
                                     <div className="flex items-center justify-between mb-4">
                                         <h3 className="text-lg font-bold text-primary flex items-center gap-2">
-                                            <Check className="w-5 h-5" /> Transaction Signée
+                                            <Check className="w-5 h-5" /> Transaction Prête
                                         </h3>
                                         <Button size="sm" onClick={handleBroadcast} className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold">
-                                            Diffuser Maintenant <ArrowRight className="ml-2 w-4 h-4" />
+                                            Diffuser (POST) <ArrowRight className="ml-2 w-4 h-4" />
                                         </Button>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-4 text-xs font-mono text-muted-foreground mb-4">
+                                        <div className="p-3 bg-black/40 rounded border border-white/5">
+                                            <div className="text-primary font-bold mb-1">{signedTx.txIns.length} Inputs (Consommés)</div>
+                                            {signedTx.txIns.map((vin, i) => (
+                                                <div key={i} className="truncate" title={vin.txOutId}>{vin.txOutId.slice(0, 8)}...#{vin.txOutIndex}</div>
+                                            ))}
+                                        </div>
+                                        <div className="p-3 bg-black/40 rounded border border-white/5">
+                                            <div className="text-primary font-bold mb-1">{signedTx.txOuts.length} Outputs (Créés)</div>
+                                            {signedTx.txOuts.map((vout, i) => (
+                                                <div key={i} className="flex justify-between">
+                                                    <span className="truncate w-16">{vout.address.slice(0, 6)}...</span>
+                                                    <span>{vout.amount} QTX</span>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
                                     <div className="bg-black/80 rounded-lg p-4 font-mono text-xs text-muted-foreground overflow-auto max-h-60 border border-white/5 relative group">
                                         <Button
@@ -443,7 +443,7 @@ const Transaction = () => {
                                                 <Check className="w-8 h-8 text-emerald-500" />
                                             </div>
                                             <h2 className="text-2xl font-bold text-white mb-2">Transaction Confirmée</h2>
-                                            <p className="text-muted-foreground mb-4">Votre transaction a été incluse dans le bloc #8,942,123 et sécurisée par le réseau.</p>
+                                            <p className="text-muted-foreground mb-4">Votre transaction a été incluse bloquée et propagée.</p>
                                             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-black/40 border border-emerald-500/30">
                                                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                                                 <span className="text-sm font-mono text-emerald-400">{confirmations} Confirmations</span>
@@ -456,7 +456,7 @@ const Transaction = () => {
                                 <div className="lg:col-span-1">
                                     <div className="h-full rounded-2xl bg-black border border-white/10 p-4 flex flex-col font-mono text-xs">
                                         <div className="flex items-center gap-2 text-muted-foreground border-b border-white/10 pb-2 mb-2">
-                                            <Globe className="w-4 h-4" /> Network Log
+                                            <Globe className="w-4 h-4" /> Node Logs
                                         </div>
                                         <div className="flex-1 overflow-y-auto space-y-2 custom-scrollbar min-h-[300px]">
                                             {broadcastLog.map((log, i) => (
@@ -465,12 +465,6 @@ const Transaction = () => {
                                                     {log}
                                                 </div>
                                             ))}
-                                            {status === "mining" && (
-                                                <div className="text-purple-400 animate-pulse">
-                                                    <span className="opacity-50 mr-2">{">"}</span>
-                                                    Solving PoW puzzle...
-                                                </div>
-                                            )}
                                         </div>
                                     </div>
                                 </div>
