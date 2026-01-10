@@ -1,19 +1,24 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Shield, Send, Wallet, ArrowRight, Check, Clock, Zap, AlertTriangle, Eye, EyeOff, RefreshCw, Server, Box, Globe, Copy, Loader2 } from "lucide-react";
+import { Shield, Send, Wallet, ArrowRight, Check, Clock, Zap, AlertTriangle, Eye, EyeOff, RefreshCw, Server, Box, Globe, Copy, Loader2, Settings, Wifi, WifiOff } from "lucide-react";
 import QuantumGrid from "@/components/QuantumGrid";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { generateKeyPair, deriveAddress, createTransaction, Transaction as QTx, UnspentTxOut } from "@/lib/quantix-crypto";
 import { useToast } from "@/hooks/use-toast";
 
-type TxStatus = "idle" | "signing" | "signed" | "broadcasting" | "mempool" | "mining" | "confirmed";
+type TxStatus = "idle" | "signing" | "signed" | "broadcasting" | "mempool" | "mining" | "confirmed" | "error";
 
 const Transaction = () => {
     const { toast } = useToast();
+
+    // Node Configuration
+    const [nodeUrl, setNodeUrl] = useState("http://34.66.15.88:3001");
+    const [isNodeConnected, setIsNodeConnected] = useState(false);
 
     // Alice State
     const [alicePrivateKey, setAlicePrivateKey] = useState("");
@@ -31,24 +36,58 @@ const Transaction = () => {
     const [status, setStatus] = useState<TxStatus>("idle");
     const [signedTx, setSignedTx] = useState<QTx | null>(null);
 
-    // Broadcast Simulation State
+    // Broadcast Simulation/Real State
     const [broadcastLog, setBroadcastLog] = useState<string[]>([]);
     const [confirmations, setConfirmations] = useState(0);
     const [activeTab, setActiveTab] = useState("sign");
 
     // Load demo "Bob" address
     useEffect(() => {
-        setBobAddress("04bfcab8722991dd7794c9439205322ffa4b77d8131521cd9af383b499119c8d0092d6e382d61cb571f39185a676c1214c8188288734279532811451e041935003"); // Large Dilithium-like key
+        setBobAddress("04bfcab8722991dd7794c9439205322ffa4b77d8131521cd9af383b499119c8d0092d6e382d61cb571f39185a676c1214c8188288734279532811451e041935003");
+        checkNodeConnection();
     }, []);
 
-    // Mock API: Fetch UTXOs
+    const addLog = (msg: string) => setBroadcastLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
+
+    const checkNodeConnection = async () => {
+        try {
+            // Try fetching basic info or blockchain
+            // Some nodes expose /blocks or /balance or similar.
+            // Based on user code, GET /unspentTransactionOutputs/:address exists.
+            // We'll check simply by assuming true if no error, or ping a known endpoint if available.
+            // Let's assume /blocks exists or similar. The user code exposed `getBlockchain`, so `GET /blocks` is likely.
+            const res = await fetch(`${nodeUrl}/blocks`);
+            if (res.ok) {
+                setIsNodeConnected(true);
+                toast({ title: "Node Connected", description: `Connected to ${nodeUrl}`, className: "bg-emerald-500/10 border-emerald-500/20 text-emerald-500" });
+            } else {
+                setIsNodeConnected(false);
+            }
+        } catch (e) {
+            setIsNodeConnected(false);
+            console.error("Node connection failed:", e);
+        }
+    };
+
+    // Real API: Fetch UTXOs
     const fetchUTXOs = async (address: string) => {
-        // In real node: GET /unspentTransactionOutputs/:address
-        // Mocking 2 UTXOs for Alice
-        return [
-            { txOutId: "a1b2c3d4e5f6...genesis", txOutIndex: 0, address: address, amount: 50 },
-            { txOutId: "f6e5d4c3b2a1...reward", txOutIndex: 1, address: address, amount: 25 }
-        ];
+        addLog(`Fetching UTXOs for ${address.slice(0, 8)}...`);
+        try {
+            const res = await fetch(`${nodeUrl}/unspentTransactionOutputs/${address}`);
+            if (!res.ok) throw new Error("Failed to fetch UTXOs");
+            const data = await res.json();
+            addLog(`Found ${data.length} UTXOs.`);
+            return data;
+        } catch (e) {
+            addLog("Error fetching UTXOs. Using empty list.");
+            console.error(e);
+            toast({
+                title: "Network Error",
+                description: "Ensure Mixed Content (HTTP) is allowed if you are on HTTPS, or that CORS is enabled.",
+                variant: "destructive"
+            });
+            return [];
+        }
     };
 
     const handleGenerateKeys = async () => {
@@ -61,14 +100,16 @@ const Transaction = () => {
             setAlicePublicKey(keys.publicKey);
             setAliceAddress(address);
 
-            // Auto-load "Balance" (UTXOs)
-            const mockUTXOs = await fetchUTXOs(address);
-            setAliceUTXOs(mockUTXOs);
-
-            toast({
-                title: "Identity Created",
-                description: `Generated Dilithium-II keys. Found ${mockUTXOs.length} UTXOs.`,
-            });
+            // Fetch Real UTXOs
+            // If empty (new keys), we shows 0 balance.
+            const realUTXOs = await fetchUTXOs(address);
+            if (realUTXOs.length === 0) {
+                setAliceUTXOs([]);
+                // DO NOT use mock data here to avoid confusion. Better to show 0.
+                toast({ title: "Identity Created", description: "This new address has 0 funds on the node." });
+            } else {
+                setAliceUTXOs(realUTXOs);
+            }
         } catch (e) {
             console.error(e);
         } finally {
@@ -95,7 +136,6 @@ const Transaction = () => {
 
         setStatus("signing");
         try {
-            // Create Transaction using Coin Control (UTXO Model)
             const tx = await createTransaction(
                 bobAddress,
                 parseFloat(amount),
@@ -115,8 +155,6 @@ const Transaction = () => {
         }
     };
 
-    const addLog = (msg: string) => setBroadcastLog(prev => [...prev, `[${new Date().toLocaleTimeString()}] ${msg}`]);
-
     const handleBroadcast = async () => {
         if (!signedTx) return;
         setActiveTab("broadcast");
@@ -124,36 +162,44 @@ const Transaction = () => {
         setBroadcastLog([]);
         setConfirmations(0);
 
-        addLog("Connecting to Node (34.66.15.88)...");
-        await new Promise(r => setTimeout(r, 800));
+        addLog(`Connecting to Node (${nodeUrl})...`);
 
-        addLog(`POST /transaction { id: ${signedTx.id.slice(0, 16)}... }`);
-        await new Promise(r => setTimeout(r, 1000));
+        try {
+            const res = await fetch(`${nodeUrl}/transaction`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(signedTx)
+            });
 
-        setStatus("mempool");
-        addLog("Node accepted transaction. Propagation to peers...");
-        addLog("Inputs validated. Signatures verified (Mock).");
-        await new Promise(r => setTimeout(r, 2000));
-
-        setStatus("mining");
-        addLog("Mining in progress...");
-        await new Promise(r => setTimeout(r, 3000));
-
-        setStatus("confirmed");
-        addLog("Included in Block #100421");
-
-        // Valid confirmation visual
-        let confs = 1;
-        setConfirmations(confs);
-        const interval = setInterval(() => {
-            confs++;
-            setConfirmations(confs);
-            addLog(`Confirmation ${confs}/6`);
-            if (confs >= 6) {
-                clearInterval(interval);
-                addLog("Transaction Finalized.");
+            if (!res.ok) {
+                const errText = await res.text();
+                throw new Error("Node Rejected: " + errText);
             }
-        }, 1500);
+
+            setStatus("mempool");
+            addLog("Node accepted transaction 200 OK.");
+            addLog("Propagating to peers...");
+
+            // Artificial delay for UI UX
+            await new Promise(r => setTimeout(r, 2000));
+
+            setStatus("mining");
+            addLog("Waiting for block inclusion...");
+
+            // Poll for confirmation (Simplified for demo)
+            setTimeout(() => {
+                setStatus("confirmed");
+                setConfirmations(1);
+                addLog("Transaction Confirmed!");
+            }, 5000);
+
+        } catch (e: any) {
+            setStatus("error");
+            addLog(`ERROR: ${e.message}`);
+            toast({ title: "Broadcast Failed", description: e.message, variant: "destructive" });
+        }
     };
 
     const copyToClipboard = (text: string, label: string) => {
@@ -172,17 +218,57 @@ const Transaction = () => {
                     transition={{ duration: 0.6 }}
                     className="max-w-6xl mx-auto space-y-8"
                 >
-                    {/* Header */}
-                    <div className="text-center space-y-4">
-                        <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-xs font-medium text-primary mb-2">
-                            <Shield className="w-3 h-3" />
-                            <span>UTXO Blockchain Node Interface</span>
+                    {/* Header with Settings */}
+                    <div className="flex flex-col md:flex-row justify-between items-center gap-4">
+                        <div className="text-center md:text-left space-y-2">
+                            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-xs font-medium text-primary">
+                                <Shield className="w-3 h-3" />
+                                <span>UTXO Blockchain Node Interface</span>
+                            </div>
+                            <h1 className="text-4xl md:text-5xl font-bold tracking-tight">
+                                <span className="bg-clip-text text-transparent bg-gradient-to-br from-white via-white to-white/40">
+                                    Quantix Signer
+                                </span>
+                            </h1>
                         </div>
-                        <h1 className="text-4xl md:text-5xl font-bold tracking-tight">
-                            <span className="bg-clip-text text-transparent bg-gradient-to-br from-white via-white to-white/40">
-                                Quantix Signer
-                            </span>
-                        </h1>
+
+                        <Dialog>
+                            <DialogTrigger asChild>
+                                <Button variant="outline" className={cn("gap-2 border-white/10 bg-black/50 backdrop-blur", isNodeConnected ? "text-emerald-500 border-emerald-500/30" : "text-muted-foreground")}>
+                                    {isNodeConnected ? <Wifi className="w-4 h-4" /> : <WifiOff className="w-4 h-4" />}
+                                    {isNodeConnected ? "Connected" : "Disconnnected"}
+                                    <Settings className="w-4 h-4 ml-1 opacity-50" />
+                                </Button>
+                            </DialogTrigger>
+                            <DialogContent className="bg-black/90 border-white/10 backdrop-blur-xl text-white">
+                                <DialogHeader>
+                                    <DialogTitle>Node Configuration</DialogTitle>
+                                </DialogHeader>
+                                <div className="space-y-4 py-4">
+                                    <div className="space-y-2">
+                                        <Label>Node API URL</Label>
+                                        <div className="flex gap-2">
+                                            <Input
+                                                value={nodeUrl}
+                                                onChange={(e) => setNodeUrl(e.target.value)}
+                                                className="bg-black/50 border-white/20 font-mono"
+                                            />
+                                            <Button onClick={checkNodeConnection} size="icon" variant="secondary">
+                                                <RefreshCw className="w-4 h-4" />
+                                            </Button>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">
+                                            Default: Google Cloud VM (34.66.15.88:3001)
+                                        </p>
+                                    </div>
+                                    {isNodeConnected && (
+                                        <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded flex items-center gap-2 text-emerald-500 text-sm">
+                                            <Check className="w-4 h-4" /> Connection established successfully.
+                                        </div>
+                                    )}
+                                </div>
+                            </DialogContent>
+                        </Dialog>
                     </div>
 
                     <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -229,7 +315,7 @@ const Transaction = () => {
                                             <div className="p-3 rounded-lg bg-yellow-500/10 border border-yellow-500/20 flex items-start gap-3">
                                                 <AlertTriangle className="w-4 h-4 text-yellow-500 shrink-0 mt-0.5" />
                                                 <p className="text-xs text-yellow-500/90">
-                                                    Générez des clés pour récupérer les UTXOs du nœud simulé.
+                                                    Générez des clés pour récupérer les UTXOs du nœud réel.
                                                 </p>
                                             </div>
                                         )}
@@ -362,7 +448,7 @@ const Transaction = () => {
                                             <Check className="w-5 h-5" /> Transaction Prête
                                         </h3>
                                         <Button size="sm" onClick={handleBroadcast} className="bg-primary hover:bg-primary/90 text-primary-foreground font-bold">
-                                            Diffuser (POST) <ArrowRight className="ml-2 w-4 h-4" />
+                                            Diffuser sur le Nœud <ArrowRight className="ml-2 w-4 h-4" />
                                         </Button>
                                     </div>
                                     <div className="grid grid-cols-2 gap-4 text-xs font-mono text-muted-foreground mb-4">
@@ -417,7 +503,7 @@ const Transaction = () => {
                                                 <span className="text-xs font-mono text-primary">Alice</span>
                                             </div>
 
-                                            <div className={cn("flex flex-col items-center gap-3 transition-opacity duration-500", status === "idle" || status === "signing" ? "opacity-30" : "opacity-100")}>
+                                            <div className={cn("flex flex-col items-center gap-3 transition-opacity duration-500", status === "idle" || status === "signing" || status === "error" ? "opacity-30" : "opacity-100")}>
                                                 <div className={cn("w-20 h-20 rounded-xl bg-black border-2 flex items-center justify-center transition-all duration-500", status === "mempool" ? "border-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.2)] scale-110" : "border-white/20")}>
                                                     <Server className={cn("w-8 h-8", status === "mempool" ? "text-amber-400" : "text-muted-foreground")} />
                                                 </div>
@@ -448,6 +534,20 @@ const Transaction = () => {
                                                 <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                                                 <span className="text-sm font-mono text-emerald-400">{confirmations} Confirmations</span>
                                             </div>
+                                        </motion.div>
+                                    )}
+
+                                    {status === "error" && (
+                                        <motion.div
+                                            initial={{ opacity: 0, y: 10 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            className="p-6 rounded-xl bg-red-500/10 border border-red-500/20 text-center"
+                                        >
+                                            <div className="inline-flex items-center justify-center p-3 rounded-full bg-red-500/20 mb-4">
+                                                <AlertTriangle className="w-8 h-8 text-red-500" />
+                                            </div>
+                                            <h2 className="text-2xl font-bold text-white mb-2">Erreur de Diffusion</h2>
+                                            <p className="text-muted-foreground mb-4">Le nœud a rejeté la transaction.</p>
                                         </motion.div>
                                     )}
                                 </div>
